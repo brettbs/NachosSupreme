@@ -24,6 +24,9 @@ static int64_t ticks;
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
+/* List to hold sleeping threads. */
+static struct list timerlist;
+
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
@@ -37,6 +40,9 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  
+  /* Initialize sleeping threads list. */
+  list_init( &timerlist );
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -84,6 +90,16 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+static bool
+list_less (const struct list_elem *a,
+		   const struct list_elem *b,
+		   void *aux UNUSED)
+{
+  struct thread *t_a = list_entry (a, struct thread, sleepelem);
+  struct thread *t_b = list_entry (b, struct thread, sleepelem);
+  return t_a->wake_up_time < t_b->wake_up_time;
+}
+
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
@@ -91,14 +107,16 @@ timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
 
-  thread *t = thread_current();
+  struct thread *t = thread_current();
   t->wake_up_time = start + ticks;
+  
+  list_insert_ordered( &timerlist, &t->sleepelem, &list_less, NULL );
 
-  sema_down() //What to do here
+  sema_down( &t->timersema ); 
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  // ASSERT (intr_get_level () == INTR_ON);
+  // while (timer_elapsed (start) < ticks) 
+    // thread_yield ();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -177,6 +195,20 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+  
+  /* Check if any threads are waiting */
+  if( list_size(&timerlist) > 0 )
+  {
+	  /* Get thread closest to waking up. */
+	  struct thread *t = list_entry (list_begin(&timerlist), struct thread, sleepelem);
+	  /* Check if its ready to wake up. */
+	  if( ticks >= t->wake_up_time )
+		{
+		/* Wake thread up. */
+		sema_up( &t->timersema );
+		list_pop_front(&timerlist);
+		}
+  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -97,11 +97,7 @@ thread_init (void)
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid = allocate_tid ();
-
-  /* Initializations for timer */
-  sema_init(&timersema, 0);
-  
+  initial_thread->tid = allocate_tid (); 
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -474,7 +470,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
-  sema_init( timersema );
+
+  /* Initializations for timer */
+  sema_init( &t->timersema, 0 );
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
