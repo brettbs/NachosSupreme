@@ -355,6 +355,21 @@ thread_foreach (thread_action_func *func, void *aux)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
+thread_set_donated_priority (int new_priority) 
+{
+  struct thread *t = thread_current();
+  //This returns the idle thread with the highest priority
+  struct thread *t_idle = list_entry (list_head, struct thread, priorityelem);
+
+  //Set the new priority
+  t->priority = new_priority;
+
+  //Yield current thread to thread holding lock
+  thread_yield();
+}
+
+/* Sets the current thread's priority to NEW_PRIORITY. */
+void
 thread_set_priority (int new_priority) 
 {
   struct thread *t = thread_current();
