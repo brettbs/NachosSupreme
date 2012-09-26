@@ -97,7 +97,19 @@ thread_init (void)
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
-  initial_thread->tid = allocate_tid ();
+  initial_thread->tid = allocate_tid (); 
+}
+
+/*Function to sort according to priority and the
+	time the function was entered*/
+static bool
+list_priority (const struct list_elem *a,
+	       const struct list_elem *b,
+	       void *aux UNUSED)
+{
+  struct thread *t_a = list_entry (a, struct thread, priorityelem);
+  struct thread *t_b = list_entry (b, struct thread, priorityelem);
+  return t_a->priority > t_b->priority;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -245,7 +257,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered( &ready_list, &t->priorityelem, &list_priority, NULL );
+  //list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -316,7 +329,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    //list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered( &ready_list, &cur->priorityelem, &list_priority, NULL );
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -343,14 +357,31 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  struct thread *t = thread_current();
+  //This returns the idle thread with the highest priority
+  struct thread *t_idle = list_entry (list_head, struct thread, priorityelem);
+
+  //Set the new priority
+  t->priority = new_priority;
+
+  //Check if thread needs to yield to more important thread
+  if( t->priority < t_idle->priority )
+    {
+    thread_yield();
+    }
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  struct thread *t = thread_current();
+
+  if( priority_donated > priority )
+    {
+    return t->priority_donated;
+    }
+  return t->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -470,6 +501,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+
+  /* Initializations for timer */
+  sema_init( &t->timersema, 0 );
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

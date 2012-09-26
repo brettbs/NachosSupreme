@@ -106,17 +106,18 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
+  enum intr_level old_level;
 
   struct thread *t = thread_current();
+
+  old_level = intr_disable ();
+
   t->wake_up_time = start + ticks;
-  
   list_insert_ordered( &timerlist, &t->sleepelem, &list_less, NULL );
 
-  sema_down( &t->timersema ); 
+  intr_set_level (old_level);
 
-  // ASSERT (intr_get_level () == INTR_ON);
-  // while (timer_elapsed (start) < ticks) 
-    // thread_yield ();
+  sema_down( &t->timersema ); 
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be

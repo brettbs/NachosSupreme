@@ -90,17 +90,22 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int priority_old;                   /* Previous priority. */
+    bool is_prioirity_donated;		/* Is the priority donated */
     struct list_elem allelem;           /* List element for all threads list. */
-    int64_t wake_up_time;				/* When to wake up */
+    int64_t wake_up_time;		/* When to wake up */
 
-	/*Semaphore for alarm timer*/
-	struct semaphore timersema;
+    /*Semaphore for alarm timer*/
+    struct semaphore timersema;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    /* Priority schedule list element */
+    struct list_elem priorityelem;      /* List element. */
 	
-	/* For use with timer.c */
-	struct list_elem sleepelem;         /* List element. */
+    /* For use with timer.c */
+    struct list_elem sleepelem;         /* List element. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
