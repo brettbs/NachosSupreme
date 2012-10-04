@@ -357,6 +357,8 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_donate_priority (struct thread *t) 
 {
+  int old_level = intr_disable ();
+  
   struct thread *current_t = thread_current();
 
   //Set the new priority
@@ -372,6 +374,8 @@ thread_donate_priority (struct thread *t)
 
   //Block current thread to let thread holding lock run
   thread_block();
+  
+  intr_set_level (old_level);
 }
 
 /* Change back to old priority. */
