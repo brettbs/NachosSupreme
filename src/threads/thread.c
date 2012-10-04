@@ -355,19 +355,40 @@ thread_foreach (thread_action_func *func, void *aux)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
-thread_set_donated_priority (int new_priority) 
+thread_donate_priority (struct thread *t) 
 {
-  struct thread *t = thread_current();
-  //This returns the idle thread with the highest priority
-  struct thread *t_idle = list_entry (list_head, struct thread, priorityelem);
+  struct thread *current_t = thread_current();
 
   //Set the new priority
-  t->is_priority_donated = True;
+  t->is_priority_donated = true;
   t->priority_old = t->priority;
-  t->priority = new_priority;
+  t->priority = current_t->priority;
+  
+  //Re-sort ready list after changing priority
+  list_sort ( &ready_list, &list_priority, NULL );
+  
+  //Add thread to donor list
+  list_push_back (&t->donor_list, &current_t->donorelem);
 
-  //Yield current thread to thread holding lock
-  thread_yield();
+  //Block current thread to let thread holding lock run
+  thread_block();
+}
+
+/* Change back to old priority. */
+void
+thread_anti_donate_priority () 
+{
+  struct thread *current_t = thread_current();
+
+  //Set the new priority
+  current_t->is_priority_donated = false;
+  current_t->priority = current_t->priority_old;
+  
+  while( !list_empty( &current_t->donor_list ) )
+  {
+	  struct thread *donor = list_entry( list_pop_front ( &current_t->donor_list ), struct thread, donorelem );
+	  thread_unblock( donor );
+  }
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -376,7 +397,7 @@ thread_set_priority (int new_priority)
 {
   struct thread *t = thread_current();
   //This returns the idle thread with the highest priority
-  struct thread *t_idle = list_entry (list_head, struct thread, priorityelem);
+  struct thread *t_idle = list_entry (list_front( &ready_list ), struct thread, priorityelem);
 
   //Set the new priority
   t->priority = new_priority;
@@ -513,9 +534,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->is_priority_donated = FALSE;
-  t->old_priority = 0;
+  t->is_priority_donated = false;
+  t->priority_old = 0;
   t->magic = THREAD_MAGIC;
+  list_init (&t->donor_list);
   list_push_back (&all_list, &t->allelem);
 
   /* Initializations for timer */

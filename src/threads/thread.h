@@ -92,7 +92,7 @@ struct thread
 
     int priority;                       /* Priority. */
     int priority_old;                   /* Previous priority. */
-    bool is_prioirity_donated;		/* Is the priority donated */
+    bool is_priority_donated;		/* Is the priority donated */
     struct list_elem donorelem;         /* List element for donors. */
     struct list donor_list;		/* List of donors. */
 
@@ -148,6 +148,8 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
+void thread_donate_priority (struct thread *t);
+void thread_anti_donate_priority (void); 
 int thread_get_priority (void);
 void thread_set_priority (int);
 
