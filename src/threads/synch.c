@@ -32,6 +32,18 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+/*Function to sort according to priority and the
+	time the function was entered*/
+static bool
+list_priority (const struct list_elem *a,
+	       const struct list_elem *b,
+	       void *aux UNUSED)
+{
+  struct thread *t_a = list_entry (a, struct thread, elem);
+  struct thread *t_b = list_entry (b, struct thread, elem);
+  return t_a->priority > t_b->priority;
+}
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -68,7 +80,8 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_push_back (&sema->waiters, &thread_current ()->elem);
+	  list_insert_ordered( &sema->waiters, &thread_current ()->elem, &list_priority, NULL );
+      //list_push_back (&sema->waiters, &thread_current ()->elem);
       thread_block ();
     }
   sema->value--;
@@ -196,7 +209,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if( lock->holder != NULL )
+  if( lock->holder != NULL && lock->holder->priority < thread_current()->priority)
   {
 	  thread_donate_priority( lock->holder );
   }
@@ -261,7 +274,7 @@ lock_held_by_current_thread (const struct lock *lock)
 struct semaphore_elem 
   {
     struct list_elem elem;              /* List element. */
-    struct semaphore semaphore;         /* This semaphore. */
+    struct semaphore semaphore;      /* This semaphore. */
   };
 
 /* Initializes condition variable COND.  A condition variable

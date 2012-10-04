@@ -220,6 +220,11 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  
+  if( t->priority > thread_current()->priority )
+	{
+	thread_yield();
+	}
 
   return tid;
 }
@@ -258,8 +263,8 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered( &ready_list, &t->elem, &list_priority, NULL );
-  //list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
+  
   intr_set_level (old_level);
 }
 
@@ -371,7 +376,7 @@ thread_donate_priority (struct thread *t)
   
   //Add thread to donor list
   list_push_back (&t->donor_list, &current_t->donorelem);
-
+  
   //Block current thread to let thread holding lock run
   thread_block();
   
@@ -389,6 +394,8 @@ thread_anti_donate_priority ()
   current_t->is_priority_donated = false;
   current_t->priority = current_t->priority_old;
   
+  intr_set_level (old_level);
+  
   while( !list_empty( &current_t->donor_list ) )
   {
 	  struct thread *donor = list_entry( list_pop_front ( &current_t->donor_list ), struct thread, donorelem );
@@ -397,18 +404,20 @@ thread_anti_donate_priority ()
   
   thread_yield();
   
-  intr_set_level (old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
+  int old_level = intr_disable ();
   struct thread *t = thread_current();
 
   //Set the new priority
   t->priority = new_priority;
 
+  intr_set_level (old_level);
+  
   //This returns the idle thread with the highest priority
   if( !list_empty( &ready_list ) )
   {
@@ -426,8 +435,9 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
+  int old_level = intr_disable ();
   struct thread *t = thread_current();
-
+  intr_set_level (old_level);
   return t->priority;
 }
 
