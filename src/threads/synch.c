@@ -236,7 +236,10 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  thread_anti_donate_priority();
+  if( lock->holder->is_priority_donated )
+  {
+	thread_anti_donate_priority();
+  }
 
   lock->holder = NULL;
   

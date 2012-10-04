@@ -382,6 +382,7 @@ thread_donate_priority (struct thread *t)
 void
 thread_anti_donate_priority () 
 {
+  int old_level = intr_disable ();
   struct thread *current_t = thread_current();
 
   //Set the new priority
@@ -393,6 +394,10 @@ thread_anti_donate_priority ()
 	  struct thread *donor = list_entry( list_pop_front ( &current_t->donor_list ), struct thread, donorelem );
 	  thread_unblock( donor );
   }
+  
+  thread_yield();
+  
+  intr_set_level (old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -400,17 +405,21 @@ void
 thread_set_priority (int new_priority) 
 {
   struct thread *t = thread_current();
-  //This returns the idle thread with the highest priority
-  struct thread *t_idle = list_entry (list_front( &ready_list ), struct thread, elem);
 
   //Set the new priority
   t->priority = new_priority;
 
-  //Check if thread needs to yield to more important thread
-  if( t->priority < t_idle->priority )
-    {
-    thread_yield();
-    }
+  //This returns the idle thread with the highest priority
+  if( !list_empty( &ready_list ) )
+  {
+	struct thread *t_idle = list_entry (list_front( &ready_list ), struct thread, elem);
+    //Check if thread needs to yield to more important thread
+	  if( t->priority < t_idle->priority )
+		{
+		thread_yield();
+		}
+  }
+
 }
 
 /* Returns the current thread's priority. */
