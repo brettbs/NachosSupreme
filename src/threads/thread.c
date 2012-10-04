@@ -107,8 +107,8 @@ list_priority (const struct list_elem *a,
 	       const struct list_elem *b,
 	       void *aux UNUSED)
 {
-  struct thread *t_a = list_entry (a, struct thread, priorityelem);
-  struct thread *t_b = list_entry (b, struct thread, priorityelem);
+  struct thread *t_a = list_entry (a, struct thread, elem);
+  struct thread *t_b = list_entry (b, struct thread, elem);
   return t_a->priority > t_b->priority;
 }
 
@@ -257,7 +257,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered( &ready_list, &t->priorityelem, &list_priority, NULL );
+  list_insert_ordered( &ready_list, &t->elem, &list_priority, NULL );
   //list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -330,7 +330,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread) 
     //list_push_back (&ready_list, &cur->elem);
-    list_insert_ordered( &ready_list, &cur->priorityelem, &list_priority, NULL );
+    list_insert_ordered( &ready_list, &cur->elem, &list_priority, NULL );
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -397,7 +397,7 @@ thread_set_priority (int new_priority)
 {
   struct thread *t = thread_current();
   //This returns the idle thread with the highest priority
-  struct thread *t_idle = list_entry (list_front( &ready_list ), struct thread, priorityelem);
+  struct thread *t_idle = list_entry (list_front( &ready_list ), struct thread, elem);
 
   //Set the new priority
   t->priority = new_priority;
@@ -579,6 +579,7 @@ next_thread_to_run (void)
    still disabled.  This function is normally invoked by
    thread_schedule() as its final action before returning, but
    the first time a thread is scheduled it is called by
+   * 
    switch_entry() (see switch.S).
 
    It's not safe to call printf() until the thread switch is

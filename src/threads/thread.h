@@ -106,7 +106,7 @@ struct thread
     struct list_elem elem;              /* List element. */
 
     /* Priority schedule list element */
-    struct list_elem priorityelem;      /* List element. */
+    //struct list_elem priorityelem;      /* List element. */
 	
     /* For use with timer.c */
     struct list_elem sleepelem;         /* List element. */
