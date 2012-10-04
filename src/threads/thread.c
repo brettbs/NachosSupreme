@@ -362,6 +362,8 @@ thread_set_donated_priority (int new_priority)
   struct thread *t_idle = list_entry (list_head, struct thread, priorityelem);
 
   //Set the new priority
+  t->is_priority_donated = True;
+  t->priority_old = t->priority;
   t->priority = new_priority;
 
   //Yield current thread to thread holding lock
@@ -488,6 +490,7 @@ running_thread (void)
   asm ("mov %%esp, %0" : "=g" (esp));
   return pg_round_down (esp);
 }
+
 
 /* Returns true if T appears to point to a valid thread. */
 static bool
