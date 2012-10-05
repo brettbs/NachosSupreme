@@ -106,11 +106,17 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
+  enum intr_level old_level;
+  
+  old_level = intr_disable ();
 
   struct thread *t = thread_current();
   t->wake_up_time = start + ticks;
+ 
   
   list_insert_ordered( &timerlist, &t->sleepelem, &list_less, NULL );
+
+  intr_set_level (old_level);
 
   sema_down( &t->timersema ); 
 

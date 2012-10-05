@@ -221,9 +221,10 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
   
+  
   if( t->priority > thread_current()->priority )
 	{
-	thread_yield();
+	thread_yield_on_return();
 	}
 
   return tid;
@@ -344,12 +345,16 @@ thread_yield (void)
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
-thread_yield_on_return (void) 
+thread_yield_on_return () 
 {
+  enum intr_level old_level;
+  
   if( !intr_context() )
 	thread_yield();
   else
 	intr_yield_on_return();
+	
+  intr_set_level (old_level);
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
@@ -380,18 +385,23 @@ thread_donate_priority (struct thread *t)
 
   //Set the new priority
   t->is_priority_donated = true;
-  t->priority_old = t->priority;
+  if( t->priority_old == 0 )
+     t->priority_old = t->priority;
   t->priority = current_t->priority;
+
   
   //Add thread to donor list
-  list_push_back (&current_t->donor_list, &t->donorelem);  
+  list_push_front (&current_t->donor_list, &t->donorelem);  
   
-  e = list_head (&current_t->donor_list);
-  while ((e = list_next (e)) != list_end (&current_t->donor_list)) 
-	{
-	  struct thread *donor = list_entry( e, struct thread, donorelem );
-	  thread_donate_priority( donor );
-	}
+  if( !list_empty( &t->donor_list ) )
+  {
+	  e = list_head (&t->donor_list);
+	  while ((e = list_next (e)) != list_end (&current_t->donor_list)) 
+		{
+		  struct thread *donor = list_entry( e, struct thread, donorelem );
+		  thread_donate_priority( donor );
+		}
+  }
   
   //Re-sort ready list after changing priority
   list_sort ( &ready_list, &list_priority, NULL );
@@ -408,11 +418,14 @@ thread_anti_donate_priority (struct thread *t)
   int old_level = intr_disable ();
 
   //Set the new priority
-  t->is_priority_donated = false;
-  t->priority = t->priority_old;
-  t->priority_old = 0;
+  if( t->is_priority_donated == true )
+  {
+	  t->is_priority_donated = false;
+	  t->priority = t->priority_old;
+	  t->priority_old = 0;
+  }
   
-  while( !list_empty( &t->donor_list ) )
+  if( !list_empty( &t->donor_list ) )
   {
 	  struct thread *donor = list_entry( list_pop_front ( &t->donor_list ), struct thread, donorelem );
 	  thread_anti_donate_priority( donor );
@@ -420,6 +433,8 @@ thread_anti_donate_priority (struct thread *t)
   
   //Re-sort ready list after changing priority
   list_sort ( &ready_list, &list_priority, NULL );
+  
+  thread_yield_on_return();  
   
   intr_set_level (old_level);  
 }
