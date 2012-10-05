@@ -374,6 +374,7 @@ void
 thread_donate_priority (struct thread *t) 
 {
   int old_level = intr_disable ();
+  struct list_elem *e;
   
   struct thread *current_t = thread_current();
 
@@ -382,39 +383,45 @@ thread_donate_priority (struct thread *t)
   t->priority_old = t->priority;
   t->priority = current_t->priority;
   
+  //Add thread to donor list
+  list_push_back (&current_t->donor_list, &t->donorelem);  
+  
+  e = list_head (&current_t->donor_list);
+  while ((e = list_next (e)) != list_end (&current_t->donor_list)) 
+	{
+	  struct thread *donor = list_entry( e, struct thread, donorelem );
+	  thread_donate_priority( donor );
+	}
+  
   //Re-sort ready list after changing priority
   list_sort ( &ready_list, &list_priority, NULL );
   
-  //Add thread to donor list
-  list_push_back (&t->donor_list, &current_t->donorelem);
-  
-  //Block current thread to let thread holding lock run
-  thread_block();
+  thread_yield_on_return();
   
   intr_set_level (old_level);
 }
 
 /* Change back to old priority. */
 void
-thread_anti_donate_priority () 
+thread_anti_donate_priority (struct thread *t) 
 {
   int old_level = intr_disable ();
-  struct thread *current_t = thread_current();
 
   //Set the new priority
-  current_t->is_priority_donated = false;
-  current_t->priority = current_t->priority_old;
+  t->is_priority_donated = false;
+  t->priority = t->priority_old;
+  t->priority_old = 0;
   
-  intr_set_level (old_level);
-  
-  while( !list_empty( &current_t->donor_list ) )
+  while( !list_empty( &t->donor_list ) )
   {
-	  struct thread *donor = list_entry( list_pop_front ( &current_t->donor_list ), struct thread, donorelem );
-	  thread_unblock( donor );
+	  struct thread *donor = list_entry( list_pop_front ( &t->donor_list ), struct thread, donorelem );
+	  thread_anti_donate_priority( donor );
   }
   
-  thread_yield();
+  //Re-sort ready list after changing priority
+  list_sort ( &ready_list, &list_priority, NULL );
   
+  intr_set_level (old_level);  
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */

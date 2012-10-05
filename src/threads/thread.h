@@ -95,6 +95,7 @@ struct thread
     bool is_priority_donated;		/* Is the priority donated */
     struct list_elem donorelem;         /* List element for donors. */
     struct list donor_list;		/* List of donors. */
+    struct thread *donee;			/* thread that donated to us */
 
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t wake_up_time;		/* When to wake up */
@@ -143,13 +144,14 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+void thread_yield_on_return (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
 void thread_donate_priority (struct thread *t);
-void thread_anti_donate_priority (void); 
+void thread_anti_donate_priority (struct thread *t); 
 int thread_get_priority (void);
 void thread_set_priority (int);
 
