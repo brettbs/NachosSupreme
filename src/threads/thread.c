@@ -256,7 +256,7 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
-  enum intr_level old_level;
+  int old_level;
 
   ASSERT (is_thread (t));
 
@@ -339,6 +339,17 @@ thread_yield (void)
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
+}
+
+/* Yields the CPU.  The current thread is not put to sleep and
+   may be scheduled again immediately at the scheduler's whim. */
+void
+thread_yield_on_return (void) 
+{
+  if( !intr_context() )
+	thread_yield();
+  else
+	intr_yield_on_return();
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
