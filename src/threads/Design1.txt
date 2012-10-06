@@ -14,10 +14,13 @@ Robert Willard   <rwillard@k-state.edu>
 >> If you have any preliminary comments on your submission, notes for
 >> the TA, or extra credit, please give them here.
 
+	None.
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation,
 >> course text, lecture notes, and course staff.
 
+	None.
 
                  ALARM CLOCK
                  ===========
@@ -28,31 +31,100 @@ Robert Willard   <rwillard@k-state.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread
+  {
+    /* Owned by thread.c. */
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+
+    int priority;                       /* Priority. */
+    int priority_old;                   /* Previous priority. */
+    bool is_priority_donated;		/* Is the priority donated */
+    struct list_elem donorelem;         /* List element for donors. */
+    struct list donor_list;		/* List of donors. */
+    struct thread *donee;			/* thread that donated to us */
+
+    struct list_elem allelem;           /* List element for all threads list. */
+    int64_t wake_up_time;		/* When to wake up */
+
+    /*Semaphore for alarm timer*/
+    struct semaphore timersema;
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+    /* Priority schedule list element */
+    //struct list_elem priorityelem;      /* List element. */
+	
+    /* For use with timer.c */
+    struct list_elem sleepelem;         /* List element. */
+
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    uint32_t *pagedir;                  /* Page directory. */
+#endif
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
+
+Descriptions:
+
+int64_t wake_up_time:
+
+	This is when the thread needs to wake up.
+
+struct semaphore timersema:
+
+	This blocks the thread until it is time for it to wake up.
+
+struct list_elem sleepelem:
+
+	Used to put thread elements in a list.
+
+static struct list timerlist:
+
+	A list of the threads that are sleeping.
 
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to your timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
+	The wake up time is found from the start time and the sleep time.
+	It is then inserted into the sorted list.  We sema_down to wait for
+	the thread to wake up.
+
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
 
+	We check if there are any elements in the list first.  Then we check
+	if any of them need to wake up.  If either are false, this minimizes
+	the time in the interrupt.
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
 
+	Interrupts are disabled when threads are added to the sleeping list.
 
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
 
+	Interrupts are disabled in that function so race conditions are
+	avoided.
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> other designs that you considered?
 
+	It is a sorted list so we always know that the first element is 
+	the first one that needs to be woken up. This makes it simple and
+	easy to understand.
 
 
              PRIORITY SCHEDULING
@@ -64,7 +136,67 @@ Robert Willard   <rwillard@k-state.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread
+  {
+    /* Owned by thread.c. */
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+
+    int priority;                       /* Priority. */
+    int priority_old;                   /* Previous priority. */
+    bool is_priority_donated;		/* Is the priority donated */
+    struct list_elem donorelem;         /* List element for donors. */
+    struct list donor_list;		/* List of donors. */
+    struct thread *donee;			/* thread that donated to us */
+
+    struct list_elem allelem;           /* List element for all threads list. */
+    int64_t wake_up_time;		/* When to wake up */
+
+    /*Semaphore for alarm timer*/
+    struct semaphore timersema;
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+    /* Priority schedule list element */
+    //struct list_elem priorityelem;      /* List element. */
+	
+    /* For use with timer.c */
+    struct list_elem sleepelem;         /* List element. */
+
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    uint32_t *pagedir;                  /* Page directory. */
+#endif
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
+
+You can see the explination for the changed members of this struct
+in B2.
+
 >> B2: Explain the data structure used to track priority donation.
+
+	int priority_old:
+		This data structure stores the original priority for the thread.
+
+	bool is_priority_donated:
+		This data structure stores whether or not the thread has a priority
+		that has been donated.
+
+	struct list_elem donorelem:
+		This is the data structure that is used inside of the donor_list.
+	
+	struct list donor_list:
+		This data structure holds a list of threads that have donated to
+		this thread.
+
+	struct thread *donee:
+		This data structure is the thread that this thread has given its
+		priority to.
 
 
 ---- ALGORITHMS ----
@@ -72,11 +204,26 @@ Robert Willard   <rwillard@k-state.edu>
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
 
+	We sort the ready_list so that the highest priority if first, and we
+	always take of the front element.
+
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
 
+	We see if the lock holder has a lower priority than the current
+	thread.  If it does, we donate the current thread's priority to 
+	the lock holder. We then sema_down the lock and make the lock holder
+	the current thread.
+
+	Nested donation is handles by making the priority donation function
+	recursive.
+
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
+
+	We check to see if the lock holder has a donated priority. If it
+	does, we revert the priority donation. We then make the lock holder
+	NULL and sema_up the lock semaphore.
 
 ---- SYNCHRONIZATION ----
 
@@ -84,10 +231,25 @@ Robert Willard   <rwillard@k-state.edu>
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
+	We avoid a potential race condition by disabling interrupts 
+	when we get the current thread. Otherwise there might be an issue
+	with the front element in the list changing.
+
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+	Sorted lists eliminate a lot of the thinking involved with highest
+	priority or the element that has been sleeping the longest. We can
+	always just take off the top element and know it has the highest
+	priority.
+	
+	The change in the data structure was dictated by what we need
+	for priority donation.  It is simplest to implement priority
+	donation by using data structures that store both donors and donees.
+	Our original implementation involved only using donors, which would
+	have been more complicated and convoluted.
 
 
               ADVANCED SCHEDULER [EXTRA CREDIT]
@@ -133,4 +295,6 @@ ticks   A   B   C   A   B   C   to run
 >> disadvantages in your design choices.  If you were to have extra
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
+
+
 
