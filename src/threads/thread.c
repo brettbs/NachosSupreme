@@ -452,8 +452,6 @@ thread_set_priority (int new_priority)
 
   //Set the new priority
   t->priority = new_priority;
-
-  intr_set_level (old_level);
   
   //This returns the idle thread with the highest priority
   if( !list_empty( &ready_list ) )
@@ -465,6 +463,7 @@ thread_set_priority (int new_priority)
 		thread_yield();
 		}
   }
+  intr_set_level (old_level);
 
 }
 

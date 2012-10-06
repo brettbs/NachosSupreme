@@ -128,6 +128,8 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
   
   struct thread *unblocked = NULL;
+  
+  list_sort ( &sema->waiters, &sema_priority, NULL );
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
@@ -207,6 +209,7 @@ lock_init (struct lock *lock)
 
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
+  lock->priority = 0;
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -224,12 +227,19 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   
+  //int old_level = intr_disable ();
+  
   struct thread *t = thread_current();
-
-  if( lock->holder != NULL && lock->holder->priority < thread_current()->priority)
+  
+  lock->priority = thread_current()->priority;
+  
+  if( lock->holder != NULL && lock->holder->priority < lock->priority)
   {
 	  thread_donate_priority( lock->holder );
+	  t = thread_current();
   }
+
+  //intr_set_level (old_level);
 
   sema_down (&lock->semaphore);
   lock->holder = t;
@@ -266,9 +276,9 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  if( lock->holder->is_priority_donated )
+  if( lock->holder->is_priority_donated && thread_current()->priority == lock->priority )
   {
-	thread_anti_donate_priority( lock->holder );
+	thread_anti_donate_priority( thread_current() );
   }
 
   lock->holder = NULL;

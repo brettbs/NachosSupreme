@@ -105,24 +105,17 @@ list_less (const struct list_elem *a,
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
   enum intr_level old_level;
+  int64_t start = timer_ticks ();
   
-  old_level = intr_disable ();
-
   struct thread *t = thread_current();
   t->wake_up_time = start + ticks;
  
-  
+  old_level = intr_disable ();
   list_insert_ordered( &timerlist, &t->sleepelem, &list_less, NULL );
-
   intr_set_level (old_level);
 
   sema_down( &t->timersema ); 
-
-  ASSERT (intr_get_level () == INTR_ON);
-  // while (timer_elapsed (start) < ticks) 
-    // thread_yield ();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -203,7 +196,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
   thread_tick ();
   
   /* Check if any threads are waiting */
-  if( list_size(&timerlist) > 0 )
+  while( list_size(&timerlist) > 0 )
   {
 	  /* Get thread closest to waking up. */
 	  struct thread *t = list_entry (list_begin(&timerlist), struct thread, sleepelem);
@@ -214,6 +207,10 @@ timer_interrupt (struct intr_frame *args UNUSED)
 		sema_up( &t->timersema );
 		list_pop_front(&timerlist);
 		}
+	  else
+	  {
+		  break;
+	  }
   }
 }
 
